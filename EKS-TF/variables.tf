@@ -1,12 +1,22 @@
-variable "vpc-name" {}
-variable "igw-name" {}
-variable "rt-name2" {}
-variable "subnet-name" {}
-variable "subnet-name2" {}
-variable "security-group-name" {}
-variable "iam-role-eks" {}
-variable "iam-role-node" {}
-variable "iam-policy-eks" {}
-variable "iam-policy-node" {}
-variable "cluster-name" {}
-variable "eksnode-group-name" {}
+variable "vpc_name" {}
+variable "igw_name" {}
+variable "rt_name2" {}
+variable "subnet_name" {}
+variable "subnet_name2" {}
+variable "security_group_name" {}
+variable "iam_role_eks" {}
+variable "iam_role_node" {}
+variable "iam_policy_eks" {}
+variable "iam_policy_node" {}
+variable "cluster_name" {}
+variable "eksnode_group_name" {}
+
+variable "subnet_id_1" {
+  description = "Subnet ID from AWS"
+  type        = string
+}
+
+variable "security_group_id" {
+  description = "Security Group ID from AWS"
+  type        = string
+}
