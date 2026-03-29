@@ -1,11 +1,10 @@
 resource "aws_eks_node_group" "eks-node-group" {
   cluster_name    = aws_eks_cluster.eks-cluster.name
   node_group_name = var.eksnode-group-name
-
-  node_role_arn = "arn:aws:iam::333732092862:role/LabRole"
+  node_role_arn   = "arn:aws:iam::333732092862:role/LabRole"
 
   subnet_ids = [
-    data.aws_subnet.subnet.id,
+    var.subnet_id_1,
     aws_subnet.public-subnet2.id
   ]
 
@@ -17,6 +16,4 @@ resource "aws_eks_node_group" "eks-node-group" {
 
   instance_types = ["t3a.medium"]
   disk_size      = 20
-
-  depends_on = []
 }
