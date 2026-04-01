@@ -20,3 +20,11 @@ variable "security_group_id" {
   description = "Security Group ID from AWS"
   type        = string
 }
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "igw_id" {
+  type = string
+}
