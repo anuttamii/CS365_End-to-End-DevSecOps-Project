@@ -1,8 +1,8 @@
 variable "vpc_name" {}
 variable "igw_name" {}
-variable "rt_name2" {}
+variable "rt_name2" { type = string }
 variable "subnet_name" {}
-variable "subnet_name2" {}
+variable "subnet_name2" { type = string }
 variable "security_group_name" {}
 variable "iam_role_eks" {}
 variable "iam_role_node" {}

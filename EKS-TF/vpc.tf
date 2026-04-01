@@ -1,20 +1,14 @@
 # ========================
-# VARIABLES
-# ========================
-variable "vpc_id" {}
-variable "igw_id" {}
-
-# ========================
 # CREATE SUBNET ใหม่
 # ========================
-resource "aws_subnet" "public-subnet2" {
+resource "aws_subnet" "public_subnet2" {
   vpc_id                  = var.vpc_id
   cidr_block              = "10.0.2.0/24"
   availability_zone       = "us-east-1b"
   map_public_ip_on_launch = true
 
   tags = {
-    Name = var.subnet-name2
+    Name = var.subnet_name2
   }
 }
 
@@ -30,14 +24,14 @@ resource "aws_route_table" "rt2" {
   }
 
   tags = {
-    Name = var.rt-name2
+    Name = var.rt_name2
   }
 }
 
 # ========================
 # ASSOCIATE ROUTE TABLE
 # ========================
-resource "aws_route_table_association" "rt-association2" {
+resource "aws_route_table_association" "rt_association2" {
   route_table_id = aws_route_table.rt2.id
-  subnet_id      = aws_subnet.public-subnet2.id
+  subnet_id      = aws_subnet.public_subnet2.id
 }
