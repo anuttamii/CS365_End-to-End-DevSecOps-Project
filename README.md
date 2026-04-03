@@ -51,4 +51,4 @@ Welcome to an immersive DevSecOps learning experience! This project guides you t
    Special thanks to the open-source community and the contributors who make learning and collaboration an incredible journey.
 
 ## License 📄
-   This project is licensed under the Apache-2.0 license see the [LICENSE](http://www.apache.org/licenses/) file for details.
+   This project is licensed under the Apache-2.0 license see the [LICENSE](http://www.apache.org/licenses/) file for details
