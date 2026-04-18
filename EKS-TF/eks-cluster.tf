@@ -1,6 +1,6 @@
 resource "aws_eks_cluster" "eks_cluster" {
   name     = var.cluster_name
-  role_arn = "arn:aws:iam::333732092862:role/LabRole"
+  role_arn = "arn:aws:iam::140891077762:role/LabRole"
 
   version = "1.33"
 
