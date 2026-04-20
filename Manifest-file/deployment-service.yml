@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: tetris
-        image: sittiyaa/tetrisv1:latest
+        image: sittiyaa/tetrisv1:23
         ports:
         - containerPort: 3000
 apiVersion: v1
