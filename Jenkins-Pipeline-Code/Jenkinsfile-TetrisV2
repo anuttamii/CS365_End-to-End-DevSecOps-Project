@@ -6,7 +6,7 @@ pipeline {
     }
     
     environment {
-        IMAGE_NAME = "avian19/tetrisv1"
+        IMAGE_NAME = "sittiyaa/tetrisv1"
         REPO_URL   = "github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git"
         SONAR_NAME = "sonar-scanner" 
     }
