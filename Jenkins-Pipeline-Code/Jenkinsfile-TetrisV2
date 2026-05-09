@@ -8,7 +8,6 @@ pipeline {
     environment {
         IMAGE_NAME = "sittiyaa/tetrisv1"
         REPO_URL   = "github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git"
-        SONAR_NAME = "sonar-scanner" 
     }
     
     stages {
@@ -28,15 +27,10 @@ pipeline {
         stage('Sonarqube Analysis') {
             steps {
                 dir('Tetris-V1') {
-                    // 1. ดึง Path ของเครื่องมือ sonar-scanner ที่เราตั้งไว้ใน Tools
                     script {
                         def scannerHome = tool 'sonar-scanner' 
-                        
-                        // 2. เรียกใช้ Environment ของ Sonar Server
                         withSonarQubeEnv('sonar-scanner') { 
-                            sh "npm install && npm run build || true"
-                            
-                            // 3. ใช้ Path เต็มในการรันคำสั่ง
+                            // รันแบบรวบรัด ไม่ต้องลง npm install ข้างนอก
                             sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=Tetris-Project"
                         }
                     }
@@ -44,50 +38,23 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Docker Build & Push') {
             steps {
                 dir('Tetris-V1') {
-                    sh 'npm install'
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker', 
+                        usernameVariable: 'DOCKER_USER', 
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                            docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                            docker push ${IMAGE_NAME}:latest
+                        '''
+                    }
                 }
-            }
-        }
-
-        stage('Trivy File Scan') {
-            steps {
-                dir('Tetris-V1') {
-                    sh 'trivy fs . > trivyfs.txt || true'
-                }
-            }
-        }
-
-        stage('Docker Build') {
-            steps {
-                dir('Tetris-V1') {
-                    sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
-                }
-            }
-        }
-
-        stage('Docker Push') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker', 
-                    usernameVariable: 'DOCKER_USER', 
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
-                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
-                        docker push ${IMAGE_NAME}:latest
-                    '''
-                }
-            }
-        }
-
-        stage('Trivy Image Scan') {
-            steps {
-                sh "trivy image ${IMAGE_NAME}:${BUILD_NUMBER} > trivyimage.txt || true"
             }
         }
 
@@ -102,15 +69,20 @@ pipeline {
                         sh '''
                             git config user.email "anuttama.sae@dome.tu.ac.th"
                             git config user.name "anuttamii"
-                            OLD_TAG=$(grep -oP '(?<=avian19/tetrisv1:)[^ ]+' deployment-service.yml || echo "latest")
-                            sed -i "s|avian19/tetrisv1:${OLD_TAG}|avian19/tetrisv1:${BUILD_NUMBER}|g" deployment-service.yml
 
+                            # เปลี่ยนชื่อภาพและ Tag ให้เป็นปัจจุบัน
+                            sed -i "s|avian19/tetrisv1:[^ ]*|${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment-service.yml
+                            sed -i "s|sittiyaa/tetrisv1:[^ ]*|${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment-service.yml
+
+                            # เจาะจงเฉพาะไฟล์ที่ต้องการ commit เท่านั้น
                             git add deployment-service.yml
-                            if git diff --quiet && git diff --staged --quiet; then
-                                echo "No changes to commit."
-                            else
+                            
+                            # ถ้ามีการเปลี่ยนแปลง ให้ commit และ push
+                            if ! git diff --staged --quiet; then
                                 git commit -m "Update image to version ${BUILD_NUMBER} [skip ci]"
                                 git push "https://${GH_USER}:${GH_TOKEN}@github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git" HEAD:main
+                            else
+                                echo "No changes detected in deployment-service.yml"
                             fi
                         '''
                     }
@@ -122,13 +94,15 @@ pipeline {
     post {
         always {
             echo "Pipeline finished execution."
+            // ลบ Image ทิ้งเพื่อคืนพื้นที่ Disk ทันที
+            sh "docker rmi ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest || true"
             sh 'docker image prune -f || true'
         }
         success {
             echo "Successfully deployed version ${BUILD_NUMBER}!"
         }
         failure {
-            echo "Pipeline failed. Check SonarQube or Disk space."
+            echo "Pipeline failed. Check Git credentials or Disk space."
         }
     }
 }
