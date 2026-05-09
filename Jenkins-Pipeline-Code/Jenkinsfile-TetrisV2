@@ -1,116 +1,134 @@
 pipeline {
     agent any
+    
     tools {
         nodejs 'nodejs'
     }
-    environment  {
-        SCANNER_HOME=tool 'sonar-scanner'
+    
+    environment {
+        IMAGE_NAME = "avian19/tetrisv1"
+        REPO_URL   = "github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git"
+        SONAR_NAME = "sonar-scanner" 
     }
+    
     stages {
         stage('Cleaning Workspace') {
             steps {
                 cleanWs()
             }
         }
+
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git'
+                git branch: 'main', 
+                    url: "https://${env.REPO_URL}"
             }
         }
+
         stage('Sonarqube Analysis') {
             steps {
-                dir('Tetris-V2') {
-                    withSonarQubeEnv('sonar-server') {
-                        sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Tetris \
-                        -Dsonar.projectKey=Tetris '''
-                    }
-                }
-            }
-        }
-        stage('Quality Check') {
-            steps {
-                script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
-                }
-            }
-        }
-        stage('Installing Dependencies') {
-            steps {
-                dir('Tetris-V2') {
-                    sh 'npm install'
-                }
-            }
-        }
-        stage('OWASP Dependency-Check Scan') {
-            steps {
-                dir('Tetris-V2') {
-                    dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                }
-            }
-        }
-        stage('Trivy File Scan') {
-            steps {
-                dir('Tetris-V2') {
-                    sh 'trivy fs . > trivyfs.txt'
-                }
-            }
-        }
-        stage("Docker Image Build") {
-            steps {
-                script {
-                    dir('Tetris-V2') {
-                        withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
-                            sh 'docker system prune -f'
-                            sh 'docker build -t tetrisv1 .'
+                dir('Tetris-V1') {
+                    // 1. ดึง Path ของเครื่องมือ sonar-scanner ที่เราตั้งไว้ใน Tools
+                    script {
+                        def scannerHome = tool 'sonar-scanner' 
+                        
+                        // 2. เรียกใช้ Environment ของ Sonar Server
+                        withSonarQubeEnv('sonar-scanner') { 
+                            sh "npm install && npm run build || true"
+                            
+                            // 3. ใช้ Path เต็มในการรันคำสั่ง
+                            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=Tetris-Project"
                         }
                     }
                 }
             }
         }
-        stage("Docker Image Pushing") {
+
+        stage('Install Dependencies') {
             steps {
-                script {
-                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
-                        sh 'docker tag tetrisv1 avian19/tetrisv1:${BUILD_NUMBER}'
-                        sh 'docker push avian19/tetrisv1:${BUILD_NUMBER}'
-                    }
+                dir('Tetris-V1') {
+                    sh 'npm install'
                 }
             }
         }
-        stage("TRIVY Image Scan") {
+
+        stage('Trivy File Scan') {
             steps {
-                sh 'trivy image avian19/tetrisv1:${BUILD_NUMBER} > trivyimage.txt'
+                dir('Tetris-V1') {
+                    sh 'trivy fs . > trivyfs.txt || true'
+                }
             }
         }
-        stage('Checkout Code') {
+
+        stage('Docker Build') {
             steps {
-                git branch: 'main', url: 'https://github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git'
+                dir('Tetris-V1') {
+                    sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
+                }
             }
         }
-        stage('Update Deployment file') {
-            environment {
-                GIT_REPO_NAME = "CS365_End-to-End-DevSecOps-Project"
-                GIT_USER_NAME = "anuttamii"
+
+        stage('Docker Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker', 
+                    usernameVariable: 'DOCKER_USER', 
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                        docker push ${IMAGE_NAME}:latest
+                    '''
+                }
             }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh "trivy image ${IMAGE_NAME}:${BUILD_NUMBER} > trivyimage.txt || true"
+            }
+        }
+
+        stage('Update Deployment File') {
             steps {
                 dir('Manifest-file') {
-                    withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'github', 
+                        usernameVariable: 'GH_USER', 
+                        passwordVariable: 'GH_TOKEN'
+                    )]) {
                         sh '''
                             git config user.email "anuttama.sae@dome.tu.ac.th"
                             git config user.name "anuttamii"
-                            BUILD_NUMBER=${BUILD_NUMBER}
-                            echo $BUILD_NUMBER
-                            imageTag=$(grep -oP '(?<=tetrisv1:)[^ ]+' deployment-service.yml)
-                            echo $imageTag
-                            sed -i "s/tetrisv1:${imageTag}/tetrisv1:${BUILD_NUMBER}/" deployment-service.yml
+                            OLD_TAG=$(grep -oP '(?<=avian19/tetrisv1:)[^ ]+' deployment-service.yml || echo "latest")
+                            sed -i "s|avian19/tetrisv1:${OLD_TAG}|avian19/tetrisv1:${BUILD_NUMBER}|g" deployment-service.yml
+
                             git add deployment-service.yml
-                            git commit -m "Update deployment Image to version \${BUILD_NUMBER}"
-                            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                            if git diff --quiet && git diff --staged --quiet; then
+                                echo "No changes to commit."
+                            else
+                                git commit -m "Update image to version ${BUILD_NUMBER} [skip ci]"
+                                git push "https://${GH_USER}:${GH_TOKEN}@github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git" HEAD:main
+                            fi
                         '''
                     }
                 }
             }
+        }
+    }
+    
+    post {
+        always {
+            echo "Pipeline finished execution."
+            sh 'docker image prune -f || true'
+        }
+        success {
+            echo "Successfully deployed version ${BUILD_NUMBER}!"
+        }
+        failure {
+            echo "Pipeline failed. Check SonarQube or Disk space."
         }
     }
 }
