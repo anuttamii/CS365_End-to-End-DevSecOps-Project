@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: tetris
-        image: sittiyaa/tetrisv2:24
+        image: sittiyaa/tetrisv2:25
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
