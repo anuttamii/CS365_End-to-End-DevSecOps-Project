@@ -63,3 +63,14 @@ echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.
 sudo apt-get update
 sudo apt-get install trivy
 trivy --version
+
+# Installing OWASP Dependency-Check CLI
+DEPENDENCY_CHECK_VERSION="12.1.0"
+cd /tmp
+wget "https://github.com/dependency-check/DependencyCheck/releases/download/v${DEPENDENCY_CHECK_VERSION}/dependency-check-${DEPENDENCY_CHECK_VERSION}-release.zip"
+unzip "dependency-check-${DEPENDENCY_CHECK_VERSION}-release.zip"
+sudo mv dependency-check /opt/dependency-check
+sudo ln -sf /opt/dependency-check/bin/dependency-check.sh /usr/local/bin/dependency-check.sh
+sudo mkdir -p /var/lib/dependency-check
+sudo chown -R jenkins:jenkins /var/lib/dependency-check
+dependency-check.sh --version

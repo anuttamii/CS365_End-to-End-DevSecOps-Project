@@ -8,6 +8,9 @@ pipeline {
     environment {
         IMAGE_NAME = "sittiyaa/tetrisv2"
         REPO_URL   = "github.com/anuttamii/CS365_End-to-End-DevSecOps-Project.git"
+        TRIVY_CACHE_DIR = "${WORKSPACE}/.trivycache"
+        DC_DATA_DIR = "/var/lib/dependency-check"
+        JAVA_OPTS = "-Xmx512m"
     }
     
     stages {
@@ -34,6 +37,44 @@ pipeline {
                             sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=Tetris-Project"
                         }
                     }
+                }
+            }
+        }
+
+        stage('Trivy File Scan') {
+            steps {
+                dir('Tetris-V2') {
+                    sh '''
+                        trivy fs \
+                          --scanners vuln,secret \
+                          --severity HIGH,CRITICAL \
+                          --timeout 10m \
+                          --cache-dir "$TRIVY_CACHE_DIR" \
+                          --skip-dirs node_modules \
+                          --format table \
+                          --output trivyfs.txt \
+                          . || true
+                    '''
+                }
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                dir('Tetris-V2') {
+                    sh '''
+                        dependency-check.sh \
+                          --project "Tetris-V2" \
+                          --scan . \
+                          --out dependency-check-report \
+                          --format HTML \
+                          --data "$DC_DATA_DIR" \
+                          --disableAssembly \
+                          --disableYarnAudit \
+                          --disableNodeAudit \
+                          --exclude "**/node_modules/**" \
+                          --failOnCVSS 11 || true
+                    '''
                 }
             }
         }
@@ -71,8 +112,7 @@ pipeline {
                             git config user.name "anuttamii"
 
                             # เปลี่ยนชื่อภาพและ Tag ให้เป็นปัจจุบัน
-                            sed -i "s|avian19/tetrisv2:[^ ]*|${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment-service.yml
-                            sed -i "s|sittiyaa/tetrisv2:[^ ]*|${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment-service.yml
+                            sed -i "s|image: .*|image: ${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment-service.yml
 
                             # เจาะจงเฉพาะไฟล์ที่ต้องการ commit เท่านั้น
                             git add deployment-service.yml
